@@ -32,6 +32,7 @@ use DBObject;
 use lnkContactToFunctionalCI;
 use lnkPersonToTeam;
 use MetaModel;
+use Organization;
 
 
 /**
@@ -44,6 +45,7 @@ use MetaModel;
 class DBObjectTest extends ItopDataTestCase
 {
 	const CREATE_TEST_ORG = true;
+
 
 	protected function setUp(): void
 	{
@@ -1090,16 +1092,41 @@ class DBObjectTest extends ItopDataTestCase
 		[$bCheckStatus, $aCheckIssues, $bSecurityIssue] = $oTicket->CheckToWrite();
 		$this->assertEquals($bExpectedStatus, $bCheckStatus, 'Check AttributeString value is ok');
 
-
+		//text_to_add contains non ascii characters
 		$sTextToAdd = file_get_contents(__DIR__.'/data-test/text_to_add.txt');
 		$oTicket->SetTrim($sAttrCode, $sValue.$sTextToAdd);
 		$sExpectedAfterTrim = file_get_contents($sFileExpectedValue);
-		$this->assertEquals($sExpectedAfterTrim, $oTicket->Get($sAttrCode), 'Check AttributeString trim');
+		$this->assertEquals($sExpectedAfterTrim, $oTicket->Get($sAttrCode), 'Check AttributeString SetTrim must limit field to 255 characters');
 
 		$oTicket->SetTrim($sAttrCode, $sTextToAdd.$sValue);
 		$sExpectedAfterTrim = file_get_contents($sFileExpectedValue2);
-		$this->assertEquals($sExpectedAfterTrim, $oTicket->Get($sAttrCode), 'Check AttributeString trim test 2');
+		$this->assertEquals($sExpectedAfterTrim, $oTicket->Get($sAttrCode), 'Check AttributeString SetTrim must limit field to 255 characters test 2');
 	}
 
 
+	public function SetTrimProvider()
+	{
+		return [
+				'short string should not be truncated'=>               ['name','name'],
+		        'simple ascii string longer than 255 characters truncated'=> [
+							str_repeat('e',300),
+							str_repeat('e',232).' -truncated (300 chars)'
+		        ],
+				'smiley string longer than 255 characters truncated'=> [
+					str_repeat('😃',300),
+					str_repeat('😃',232).' -truncated (300 chars)'
+				],
+
+			];
+	}
+
+	/**
+	 * @dataProvider SetTrimProvider
+	 * @return void
+	 */
+	public function testSetTrim($sName, $sResult){
+		$oOrganisation = MetaModel::NewObject(Organization::class);
+		$oOrganisation->SetTrim('name',$sName);
+		$this->assertEquals($sResult,$oOrganisation->Get('name'),'SetTrim must limit string to 255 characters');
+	}
 }
